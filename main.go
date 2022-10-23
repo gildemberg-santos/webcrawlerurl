@@ -18,7 +18,7 @@ import (
 func main() {
 	fmt.Println("Starting webcrawler")
 	done := make(chan bool)
-	go VisitLink("https://blog.rocketseat.com.br/", done, 1)
+	go VisitLink(-1, "https://blog.rocketseat.com.br/", done, 1)
 	<-done
 	fmt.Println("Finished webcrawler")
 }
@@ -30,12 +30,19 @@ func main() {
 // *****************************************************************************
 
 type VisitedLink struct {
+	Company     int       `json:"company" bson:"company"`
 	Website     string    `json:"website"`
 	Link        string    `json:"link"`
 	VisitedDate time.Time `json:"visited_date"`
 }
 
-func VisitLink(link string, done chan bool, level int) {
+func VisitLink(company int, link string, done chan bool, level int) {
+	if company == 0 {
+		fmt.Println("Error: No companies reported.")
+		done <- true
+		return
+	}
+
 	link_uri, err := url.Parse(link)
 	if err != nil || link_uri.Scheme == "" {
 		fmt.Println("Error: Invalid link", link)
@@ -60,14 +67,14 @@ func VisitLink(link string, done chan bool, level int) {
 		return
 	}
 
-	extractLinks(doc, link_uri.Host, done)
+	extractLinks(doc, link_uri.Host, company, done)
 
 	if level == 1 {
 		done <- true
 	}
 }
 
-func extractLinks(node *html.Node, host string, done chan bool) {
+func extractLinks(node *html.Node, host string, company int, done chan bool) {
 	if node.Type == html.ElementNode && node.Data == "a" {
 		for _, attr := range node.Attr {
 			if attr.Key != "href" {
@@ -110,12 +117,13 @@ func extractLinks(node *html.Node, host string, done chan bool) {
 			}
 
 			visitedlink := VisitedLink{
+				Company:     company,
 				Website:     link.Host,
 				Link:        link.String(),
 				VisitedDate: time.Now(),
 			}
 
-			go VisitLink(link.String(), done, 0)
+			go VisitLink(company, link.String(), done, 0)
 			Insert("links", visitedlink)
 
 			fmt.Println("Inserted link", link.String())
@@ -124,7 +132,7 @@ func extractLinks(node *html.Node, host string, done chan bool) {
 	}
 
 	for c := node.FirstChild; c != nil; c = c.NextSibling {
-		extractLinks(c, host, done)
+		extractLinks(c, host, company, done)
 	}
 }
 
