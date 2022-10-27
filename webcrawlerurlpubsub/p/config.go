@@ -4,40 +4,72 @@ import (
 	"log"
 	"os"
 	"strconv"
+
+	"github.com/joho/godotenv"
 )
 
-func LoopMax() int {
+type Config struct {
+	LoopMax        int
+	LinksMax       int
+	MongoStrConnec string
+	StatusLog      bool
+}
+
+func (c *Config) Init() {
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatalf("Error loading .env file")
+	}
+
+	config.SetLoopMax()
+	config.SetLinksMax()
+	config.SetMongoStrConnection()
+	config.SetLogs()
+}
+
+func (c *Config) SetLoopMax() {
 	if os.Getenv("LOOP_MAX") != "" {
 		intege, err := strconv.Atoi(os.Getenv("LOOP_MAX"))
-		if err == nil && intege == 1 {
-			return intege
+		if err == nil && intege != 0 {
+			c.LoopMax = intege
+			return
 		}
 	}
-	return 1
+	c.LoopMax = 1
 }
 
-func LinksMax() int {
+func (c *Config) SetLinksMax() {
 	if os.Getenv("LINKS_MAX") != "" {
 		intege, err := strconv.Atoi(os.Getenv("LINKS_MAX"))
-		if err == nil && intege == 1 {
-			return intege
+		if err == nil && intege != 0 {
+			c.LinksMax = intege
+			return
 		}
 	}
-	return 5
+	c.LinksMax = 5
 }
 
-func MongoStrConnection() string {
+func (c *Config) SetMongoStrConnection() {
 	if os.Getenv("MONGO_STR_CONNECTION") != "" {
-		return os.Getenv("MONGO_STR_CONNECTION")
+		c.MongoStrConnec = os.Getenv("MONGO_STR_CONNECTION")
+		return
 	}
-	return "mongodb://localhost:27017/"
+	c.MongoStrConnec = "mongodb://localhost:27017/"
 }
 
-func Logs(msg ...interface{}) {
+func (c *Config) SetLogs() {
 	if os.Getenv("LOG_SHOW") != "" {
 		intege, err := strconv.Atoi(os.Getenv("LOG_SHOW"))
-		if err == nil && intege == 1 {
-			log.Println(msg...)
+		if err == nil && intege != 0 {
+			c.StatusLog = true
+			return
 		}
+	}
+	c.StatusLog = false
+}
+
+func (c *Config) Logs(msg ...interface{}) {
+	if c.StatusLog {
+		log.Println(msg...)
 	}
 }

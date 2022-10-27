@@ -9,33 +9,30 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type VisitedLink struct {
 	Company    int32     `bson:"company"`
 	Link       string    `bson:"link"`
 	StatusLink string    `bson:"status_link"`
-	StatusCode int32     `bson:"status_code"`
 	Validated  bool      `bson:"validated"`
 	Domain     string    `bson:"domain"`
-	CreatedAt  time.Time `bson:"created_at"`
 	UpdatedAt  time.Time `bson:"updated_at"`
 }
 
 func (v *VisitedLink) init() {
 	if v.Company == 0 {
-		Logs("Company is required")
+		config.Logs("Company is required")
 		v.Validated = false
 	}
 
 	if v.Link == "" {
-		Logs("Link is required")
+		config.Logs("Link is required")
 		v.Validated = false
 	}
 
 	if v.StatusLink == "" {
-		Logs("StatusLink is required")
+		config.Logs("StatusLink is required")
 		v.Validated = false
 	}
 
@@ -43,36 +40,23 @@ func (v *VisitedLink) init() {
 }
 
 func (v *VisitedLink) GetLink() {
+	v.StatusLink = "visited"
+	v.Validated = true
+	v.saveOne()
+
 	if !v.Validated {
-		Logs("Error: Invalid link", v.Link)
+		config.Logs("Error: Invalid link", v.Link)
 		return
 	}
 
 	resp, err := http.Get(v.Link)
 	if err != nil {
-		Logs("Error: On get link", v.Link)
-		v.Validated = true
-		v.StatusLink = "error"
-		v.saveOne()
+		config.Logs("Error: On get link", v.Link)
 		return
 	}
 	defer resp.Body.Close()
 
-	v.StatusCode = int32(resp.StatusCode)
-
-	if resp.StatusCode == http.StatusNotFound {
-		v.Validated = true
-		v.StatusLink = "error"
-		v.saveOne()
-		return
-	}
-
-	v.StatusLink = "visited"
-	v.NormalizeLink()
-	v.saveOne()
-
 	var links = v.extractLinks(resp.Body)
-
 	v.saveMany(links)
 }
 
@@ -83,10 +67,7 @@ func (v *VisitedLink) extractLinks(node io.Reader) []string {
 
 	doc, err := goquery.NewDocumentFromReader(node)
 	if err != nil {
-		Logs("Error: On parse link", v.Link)
-		v.Validated = true
-		v.StatusLink = "error"
-		v.saveOne()
+		config.Logs("Error: On parse link", v.Link)
 		return []string{}
 	}
 
@@ -180,11 +161,11 @@ func (v *VisitedLink) saveOne() {
 	}
 
 	mongo := MongoDB{
-		StringConnection: MongoStrConnection(),
+		StringConnection: config.MongoStrConnec,
 	}
 
 	if mongo.StringConnection == "" {
-		Logs("StringConnection is empty")
+		config.Logs("StringConnection is empty")
 		return
 	}
 
@@ -201,16 +182,14 @@ func (v *VisitedLink) saveOne() {
 	}
 
 	if v.StatusLink == "visited" {
-		v.CreatedAt = linksDB["created_at"].(primitive.DateTime).Time()
 		v.UpdatedAt = time.Now()
 		mongo.UpsertOne(v, bson.M{"link": v.Link, "company": v.Company})
-	} else if v.StatusLink == "pending" || v.StatusLink == "error" {
-		v.CreatedAt = time.Now()
+	} else if v.StatusLink == "pending" {
 		v.UpdatedAt = time.Now()
 		mongo.InsertOne(v)
 	}
 
-	Logs("Saved", "status", v.StatusLink, "company", v.Company, "link", v.Link)
+	config.Logs("Saved", "status", v.StatusLink, "company", v.Company, "link", v.Link)
 }
 
 func (v *VisitedLink) saveMany(links []string) {
@@ -219,11 +198,11 @@ func (v *VisitedLink) saveMany(links []string) {
 	}
 
 	mongo := MongoDB{
-		StringConnection: MongoStrConnection(),
+		StringConnection: config.MongoStrConnec,
 	}
 
 	if mongo.StringConnection == "" {
-		Logs("StringConnection is empty")
+		config.Logs("StringConnection is empty")
 		return
 	}
 
@@ -241,18 +220,19 @@ func (v *VisitedLink) saveMany(links []string) {
 			}
 			visitedLinks = append(visitedLinks, visitedLink)
 		}
+
 		mongo.InsertMany(visitedLinks)
-		Logs("Saved", "status", v.StatusLink, "company", v.Company, "Inserted", len(visitedLinks))
+		config.Logs("Saved", "status", v.StatusLink, "company", v.Company, "Inserted", len(visitedLinks))
 	}
 }
 
 func (v *VisitedLink) IsExist() bool {
 	mongo := MongoDB{
-		StringConnection: MongoStrConnection(),
+		StringConnection: config.MongoStrConnec,
 	}
 
 	if mongo.StringConnection == "" {
-		Logs("StringConnection is empty")
+		config.Logs("StringConnection is empty")
 		return false
 	}
 
@@ -262,7 +242,7 @@ func (v *VisitedLink) IsExist() bool {
 		return false
 	}
 
-	if linksDB["status_link"] == "visited" || linksDB["status_link"] == "error" {
+	if linksDB["status_link"] == "visited" {
 		return true
 	}
 

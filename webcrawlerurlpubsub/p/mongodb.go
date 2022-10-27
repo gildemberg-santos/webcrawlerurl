@@ -2,6 +2,7 @@ package p
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -17,13 +18,23 @@ func (m *MongoDB) GetConnection() (client *mongo.Client, ctx context.Context) {
 	clientOptions := options.Client().ApplyURI(m.StringConnection)
 	client, err := mongo.NewClient(clientOptions)
 	if err != nil {
-		Logs("Error MongoDB: ", err)
+		duplicatekey := strings.LastIndex(err.Error(), "E11000 duplicate key error collection")
+		if duplicatekey != -1 {
+			config.Logs("Error MongoDB: ", "E11000 duplicate key error collection.")
+			return
+		}
+		config.Logs("Error MongoDB: ", err)
 	}
 
 	ctx, _ = context.WithTimeout(context.Background(), 10*time.Second)
 	err = client.Connect(ctx)
 	if err != nil {
-		Logs("Error MongoDB: ", err)
+		duplicatekey := strings.LastIndex(err.Error(), "E11000 duplicate key error collection")
+		if duplicatekey != -1 {
+			config.Logs("Error MongoDB: ", "E11000 duplicate key error collection.")
+			return
+		}
+		config.Logs("Error MongoDB: ", err)
 	}
 
 	return
@@ -41,7 +52,12 @@ func (m *MongoDB) UpsertOne(update interface{}, filter bson.M) {
 		options.Update().SetUpsert(true),
 	)
 	if err != nil {
-		Logs("Error MongoDB: ", err)
+		duplicatekey := strings.LastIndex(err.Error(), "E11000 duplicate key error collection")
+		if duplicatekey != -1 {
+			config.Logs("Error MongoDB: ", "E11000 duplicate key error collection.")
+			return
+		}
+		config.Logs("Error MongoDB: ", err)
 	}
 }
 
@@ -52,7 +68,12 @@ func (m *MongoDB) InsertOne(insert interface{}) {
 	collectionMongo := client.Database("webcrawler").Collection("links")
 	_, err := collectionMongo.InsertOne(context.Background(), insert)
 	if err != nil {
-		Logs("Error MongoDB: ", err)
+		duplicatekey := strings.LastIndex(err.Error(), "E11000 duplicate key error collection")
+		if duplicatekey != -1 {
+			config.Logs("Error MongoDB: ", "E11000 duplicate key error collection.")
+			return
+		}
+		config.Logs("Error MongoDB: ", err)
 	}
 }
 
@@ -64,7 +85,12 @@ func (m *MongoDB) InsertMany(insert bson.A) {
 	option := options.InsertMany().SetOrdered(false)
 	_, err := collectionMongo.InsertMany(context.Background(), insert, option)
 	if err != nil {
-		Logs("Error MongoDB: ", err)
+		duplicatekey := strings.LastIndex(err.Error(), "E11000 duplicate key error collection")
+		if duplicatekey != -1 {
+			config.Logs("Error MongoDB: ", "E11000 duplicate key error collection.")
+			return
+		}
+		config.Logs("Error MongoDB: ", err)
 	}
 }
 
@@ -75,7 +101,12 @@ func (m *MongoDB) UpdateOne(update interface{}, filter bson.M) {
 	collectionMongo := client.Database("webcrawler").Collection("links")
 	_, err := collectionMongo.UpdateOne(context.Background(), filter, bson.M{"$set": update})
 	if err != nil {
-		Logs("Error MongoDB: ", err)
+		duplicatekey := strings.LastIndex(err.Error(), "E11000 duplicate key error collection")
+		if duplicatekey != -1 {
+			config.Logs("Error MongoDB: ", "E11000 duplicate key error collection.")
+			return
+		}
+		config.Logs("Error MongoDB: ", err)
 	}
 }
 
@@ -86,7 +117,12 @@ func (m *MongoDB) UpdateMany(update interface{}, filter bson.M) {
 	collectionMongo := client.Database("webcrawler").Collection("links")
 	_, err := collectionMongo.UpdateMany(context.Background(), filter, bson.M{"$set": update})
 	if err != nil {
-		Logs("Error MongoDB: ", err)
+		duplicatekey := strings.LastIndex(err.Error(), "E11000 duplicate key error collection")
+		if duplicatekey != -1 {
+			config.Logs("Error MongoDB: ", "E11000 duplicate key error collection.")
+			return
+		}
+		config.Logs("Error MongoDB: ", err)
 	}
 }
 
@@ -114,14 +150,14 @@ func (m *MongoDB) FindAll(filter bson.M, sortResult bson.M) (result []bson.M, er
 	option.SetProjection(sortResult)
 	cursor, err := collectionMongo.Find(ctx, filter, &option)
 	if err != nil {
-		Logs("Error MongoDB: ", err)
+		config.Logs("Error MongoDB: ", err)
 	}
 
 	for cursor.Next(ctx) {
 		var resultTemp bson.M
 		err := cursor.Decode(&resultTemp)
 		if err != nil {
-			Logs("Error MongoDB: ", err)
+			config.Logs("Error MongoDB: ", err)
 		}
 
 		result = append(result, resultTemp)

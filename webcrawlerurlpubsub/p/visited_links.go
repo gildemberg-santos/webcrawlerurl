@@ -13,47 +13,46 @@ func FirstPage(company int32, url string) {
 		Company:    company,
 		Link:       url,
 		StatusLink: "pending",
-		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
 		Validated:  true,
 	}
 
 	if !visitedLink.IsExist() {
-		Logs("First Page")
+		config.Logs("First Page")
 
 		visitedLink.setDomain(url)
 		visitedLink.init()
 		visitedLink.saveOne()
+		visitedLink.NormalizeLink()
 		visitedLink.GetLink()
 	}
 }
 
 func PendingPageLoop(loop int, company int32) {
-	Logs("Pending Page Loop", loop)
+	config.Logs("Pending Page Loop", loop)
 
 	mongo := MongoDB{
-		StringConnection: MongoStrConnection(),
+		StringConnection: config.MongoStrConnec,
 	}
 
 	pendingPages, _ := mongo.FindAll(bson.M{"company": company, "status_link": "pending"}, bson.M{})
 	var wg sync.WaitGroup
 	for i, v := range pendingPages {
 		wg.Add(1)
-		visitedlink := VisitedLink{
-			Company:    v["company"].(int32),
-			Link:       v["link"].(string),
-			Domain:     v["domain"].(string),
-			StatusLink: v["status_link"].(string),
-			Validated:  v["validated"].(bool),
-			CreatedAt:  v["created_at"].(primitive.DateTime).Time(),
-			UpdatedAt:  v["updated_at"].(primitive.DateTime).Time(),
-		}
-
-		go func(links VisitedLink) {
-			links.GetLink()
+		go func(v bson.M) {
+			visitedlink := VisitedLink{
+				Company:    v["company"].(int32),
+				Link:       v["link"].(string),
+				Domain:     v["domain"].(string),
+				StatusLink: v["status_link"].(string),
+				Validated:  v["validated"].(bool),
+				UpdatedAt:  v["updated_at"].(primitive.DateTime).Time(),
+			}
+			visitedlink.NormalizeLink()
+			visitedlink.GetLink()
 			defer wg.Done()
-		}(visitedlink)
-		if i >= LinksMax() {
+		}(v)
+		if i >= config.LinksMax {
 			break
 		}
 	}
@@ -62,20 +61,19 @@ func PendingPageLoop(loop int, company int32) {
 	retryPendingPages, _ := mongo.FindOne(bson.M{"company": company, "status_link": "pending"})
 	if len(retryPendingPages) != 0 {
 		loop += 1
-		if loop > LoopMax() {
-			return
+		if loop <= config.LoopMax {
+			PendingPageLoop(loop, company)
 		}
-		time.Sleep(1 * time.Second)
-		PendingPageLoop(loop, company)
+		return
 	}
 
 }
 
 func CleanDatabase(company int32) {
-	Logs("Clean Database")
+	config.Logs("Clean Database")
 
 	mongo := MongoDB{
-		StringConnection: MongoStrConnection(),
+		StringConnection: config.MongoStrConnec,
 	}
 
 	databasePending, _ := mongo.FindAll(bson.M{"company": company, "status_link": "pending"}, bson.M{})
