@@ -1,8 +1,6 @@
 package p
 
 import (
-	"log"
-	"os"
 	"sync"
 	"time"
 
@@ -21,22 +19,23 @@ func FirstPage(company int32, url string) {
 	}
 
 	if !visitedLink.IsExist() {
-		log.Println("First Page")
+		Logs("First Page")
 
 		visitedLink.setDomain(url)
 		visitedLink.init()
+		visitedLink.saveOne()
 		visitedLink.GetLink()
 	}
 }
 
-func PendingPageLoop(loop int32, company int32) {
-	log.Println("Pending Page Loop", loop)
+func PendingPageLoop(loop int, company int32) {
+	Logs("Pending Page Loop", loop)
 
 	mongo := MongoDB{
-		StringConnection: os.Getenv("MONGO_STR_CONNECTION"),
+		StringConnection: MongoStrConnection(),
 	}
 
-	pendingPages, _ := mongo.FindAll(bson.M{"company": company, "status_link": "pending"})
+	pendingPages, _ := mongo.FindAll(bson.M{"company": company, "status_link": "pending"}, bson.M{})
 	var wg sync.WaitGroup
 	for i, v := range pendingPages {
 		wg.Add(1)
@@ -54,22 +53,33 @@ func PendingPageLoop(loop int32, company int32) {
 			links.GetLink()
 			defer wg.Done()
 		}(visitedlink)
-		if i == 5 {
+		if i >= LinksMax() {
 			break
 		}
 	}
 	wg.Wait()
+
+	retryPendingPages, _ := mongo.FindOne(bson.M{"company": company, "status_link": "pending"})
+	if len(retryPendingPages) != 0 {
+		loop += 1
+		if loop > LoopMax() {
+			return
+		}
+		time.Sleep(1 * time.Second)
+		PendingPageLoop(loop, company)
+	}
+
 }
 
 func CleanDatabase(company int32) {
-	log.Println("Clean Database")
+	Logs("Clean Database")
 
 	mongo := MongoDB{
-		StringConnection: os.Getenv("MONGO_STR_CONNECTION"),
+		StringConnection: MongoStrConnection(),
 	}
 
-	databasePending, _ := mongo.FindAll(bson.M{"company": company, "status_link": "pending"})
-	databaseErrors, _ := mongo.FindAll(bson.M{"company": company, "status_link": "error"})
+	databasePending, _ := mongo.FindAll(bson.M{"company": company, "status_link": "pending"}, bson.M{})
+	databaseErrors, _ := mongo.FindAll(bson.M{"company": company, "status_link": "error"}, bson.M{})
 
 	if len(databasePending) == 0 && len(databaseErrors) > 0 {
 		mongo.DeleteAll(bson.M{"company": company, "status_link": "error"})

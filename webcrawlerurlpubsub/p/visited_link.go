@@ -2,12 +2,9 @@ package p
 
 import (
 	"io"
-	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
@@ -28,41 +25,35 @@ type VisitedLink struct {
 
 func (v *VisitedLink) init() {
 	if v.Company == 0 {
-		log.Println("Company is required")
+		Logs("Company is required")
 		v.Validated = false
 	}
 
 	if v.Link == "" {
-		log.Println("Link is required")
+		Logs("Link is required")
 		v.Validated = false
 	}
 
 	if v.StatusLink == "" {
-		log.Println("StatusLink is required")
+		Logs("StatusLink is required")
 		v.Validated = false
 	}
 
-	v.normalizeLink()
-
-	if v.Validated {
-		v.save()
-	}
+	v.NormalizeLink()
 }
 
 func (v *VisitedLink) GetLink() {
-	v.init()
-
 	if !v.Validated {
-		log.Println("Error: Invalid link", v.Link)
+		Logs("Error: Invalid link", v.Link)
 		return
 	}
 
 	resp, err := http.Get(v.Link)
 	if err != nil {
-		log.Println("Error: On get link", v.Link)
+		Logs("Error: On get link", v.Link)
 		v.Validated = true
 		v.StatusLink = "error"
-		v.save()
+		v.saveOne()
 		return
 	}
 	defer resp.Body.Close()
@@ -72,28 +63,31 @@ func (v *VisitedLink) GetLink() {
 	if resp.StatusCode == http.StatusNotFound {
 		v.Validated = true
 		v.StatusLink = "error"
-		v.save()
+		v.saveOne()
 		return
 	}
 
 	v.StatusLink = "visited"
-	v.save()
+	v.NormalizeLink()
+	v.saveOne()
 
-	v.extractLinks(resp.Body)
+	var links = v.extractLinks(resp.Body)
+
+	v.saveMany(links)
 }
 
-func (v *VisitedLink) extractLinks(node io.Reader) {
+func (v *VisitedLink) extractLinks(node io.Reader) []string {
 	if !v.Validated {
-		return
+		return []string{}
 	}
 
 	doc, err := goquery.NewDocumentFromReader(node)
 	if err != nil {
-		log.Println("Error: On parse link", v.Link)
+		Logs("Error: On parse link", v.Link)
 		v.Validated = true
 		v.StatusLink = "error"
-		v.save()
-		return
+		v.saveOne()
+		return []string{}
 	}
 
 	links := []string{}
@@ -101,36 +95,21 @@ func (v *VisitedLink) extractLinks(node io.Reader) {
 		href, success := s.Attr("href")
 
 		if success && href != "" {
-			visitedLink := VisitedLink{Link: href}
-			visitedLink.normalizeLink()
-			links = append(links, visitedLink.Link)
+			var visitedLink = VisitedLink{
+				Link:      href,
+				Domain:    v.Domain,
+				Validated: true,
+			}
+			visitedLink.NormalizeLink()
+			if visitedLink.Validated {
+				links = append(links, visitedLink.Link)
+			}
 		}
 	})
-
-	var wg sync.WaitGroup
-	for _, link := range links {
-		wg.Add(1)
-		go func(link string) {
-			visitedLink := VisitedLink{
-				Company:    v.Company,
-				Link:       link,
-				StatusLink: "pending",
-				Domain:     v.Domain,
-				CreatedAt:  time.Now(),
-				UpdatedAt:  time.Now(),
-				Validated:  true,
-			}
-			visitedLink.normalizeLink()
-			if visitedLink.Validated {
-				visitedLink.init()
-			}
-			defer wg.Done()
-		}(link)
-	}
-	wg.Wait()
+	return links
 }
 
-func (v *VisitedLink) normalizeLink() {
+func (v *VisitedLink) NormalizeLink() {
 	if !v.Validated {
 		return
 	}
@@ -195,17 +174,17 @@ func (v *VisitedLink) normalizeLink() {
 	v.Validated = true
 }
 
-func (v *VisitedLink) save() {
+func (v *VisitedLink) saveOne() {
 	if !v.Validated {
 		return
 	}
 
 	mongo := MongoDB{
-		StringConnection: os.Getenv("MONGO_STR_CONNECTION"),
+		StringConnection: MongoStrConnection(),
 	}
 
 	if mongo.StringConnection == "" {
-		log.Println("StringConnection is empty")
+		Logs("StringConnection is empty")
 		return
 	}
 
@@ -219,22 +198,61 @@ func (v *VisitedLink) save() {
 		if linksDB["company"] == v.Company && linksDB["link"] == v.Link && linksDB["status_link"] == v.StatusLink {
 			return
 		}
-
-		v.CreatedAt = linksDB["created_at"].(primitive.DateTime).Time()
-		v.UpdatedAt = time.Now()
 	}
 
-	mongo.Upsert(v, bson.M{"link": v.Link, "company": v.Company})
-	log.Println("Saved", "status", v.StatusLink, "company", v.Company, "link", v.Link)
+	if v.StatusLink == "visited" {
+		v.CreatedAt = linksDB["created_at"].(primitive.DateTime).Time()
+		v.UpdatedAt = time.Now()
+		mongo.UpsertOne(v, bson.M{"link": v.Link, "company": v.Company})
+	} else if v.StatusLink == "pending" || v.StatusLink == "error" {
+		v.CreatedAt = time.Now()
+		v.UpdatedAt = time.Now()
+		mongo.InsertOne(v)
+	}
+
+	Logs("Saved", "status", v.StatusLink, "company", v.Company, "link", v.Link)
+}
+
+func (v *VisitedLink) saveMany(links []string) {
+	if !v.Validated {
+		return
+	}
+
+	mongo := MongoDB{
+		StringConnection: MongoStrConnection(),
+	}
+
+	if mongo.StringConnection == "" {
+		Logs("StringConnection is empty")
+		return
+	}
+
+	if v.StatusLink == "visited" {
+		visitedLinks := bson.A{}
+		for _, link := range links {
+			visitedLink := bson.M{
+				"link":        link,
+				"company":     v.Company,
+				"domain":      v.Domain,
+				"status_link": "pending",
+				"validated":   true,
+				"created_at":  time.Now(),
+				"updated_at":  time.Now(),
+			}
+			visitedLinks = append(visitedLinks, visitedLink)
+		}
+		mongo.InsertMany(visitedLinks)
+		Logs("Saved", "status", v.StatusLink, "company", v.Company, "Inserted", len(visitedLinks))
+	}
 }
 
 func (v *VisitedLink) IsExist() bool {
 	mongo := MongoDB{
-		StringConnection: os.Getenv("MONGO_STR_CONNECTION"),
+		StringConnection: MongoStrConnection(),
 	}
 
 	if mongo.StringConnection == "" {
-		log.Println("StringConnection is empty")
+		Logs("StringConnection is empty")
 		return false
 	}
 
@@ -264,37 +282,4 @@ func (v *VisitedLink) setDomain(domain string) {
 	}
 
 	v.Domain = link.Host
-}
-
-func linksUnique(links []string) []string {
-	linksTemp := []string{}
-	validatedLink := map[string]bool{}
-
-	for v := range links {
-		linkTemp := VisitedLink{
-			Link: links[v],
-		}
-		linkTemp.normalizeLink()
-		validatedLink[linkTemp.Link] = true
-	}
-
-	for key := range validatedLink {
-		linkTemp := VisitedLink{
-			Link: key,
-		}
-		linkTemp.normalizeLink()
-		linksTemp = append(linksTemp, linkTemp.Link)
-	}
-
-	return linksTemp
-}
-
-func linksExist(links []string, link string) bool {
-	encountered := map[string]bool{}
-
-	for v := range links {
-		encountered[links[v]] = true
-	}
-
-	return encountered[link]
 }

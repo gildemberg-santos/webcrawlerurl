@@ -9,8 +9,7 @@ import (
 )
 
 func main() {
-	os.Setenv("MONGO_STR_CONNECTION", "mongodb://localhost:27017")
-
+	os.Setenv("LOG_SHOW", "0")
 	var cxt = context.Context(context.Background())
 	var datalinks = p.DataLinks{
 		Company: -1,

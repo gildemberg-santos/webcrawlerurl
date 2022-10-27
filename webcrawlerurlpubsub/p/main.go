@@ -3,7 +3,6 @@ package p
 import (
 	"context"
 	"encoding/json"
-	"log"
 )
 
 type PubSubMessage struct {
@@ -23,9 +22,9 @@ func WebCrawlerUrlPubSub(ctx context.Context, m PubSubMessage) error {
 }
 
 func call(company int32, link string) {
-	log.Println("Starting webcrawlerurl company", company, "link", link)
+	Logs("Starting webcrawlerurl company", company, "link", link)
 	FirstPage(company, link)
 	PendingPageLoop(1, company)
 	CleanDatabase(company)
-	log.Println("Done webcrawlerurl company", company, "link", link)
+	Logs("Done webcrawlerurl company", company, "link", link)
 }
