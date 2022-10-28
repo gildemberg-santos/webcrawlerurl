@@ -42,22 +42,24 @@ func (v *VisitedLink) init() {
 func (v *VisitedLink) GetLink() {
 	v.StatusLink = "visited"
 	v.Validated = true
-	v.saveOne()
 
 	if !v.Validated {
 		config.Logs("Error: Invalid link", v.Link)
+		v.saveOne()
 		return
 	}
 
 	resp, err := http.Get(v.Link)
 	if err != nil {
 		config.Logs("Error: On get link", v.Link)
+		v.saveOne()
 		return
 	}
 	defer resp.Body.Close()
 
 	var links = v.extractLinks(resp.Body)
 	v.saveMany(links)
+	v.saveOne()
 }
 
 func (v *VisitedLink) extractLinks(node io.Reader) []string {
@@ -120,6 +122,8 @@ func (v *VisitedLink) NormalizeLink() {
 	}
 
 	if link.Path != "" {
+		link.Path = strings.TrimSuffix(link.Path, "/")
+
 		validationExtension := func(path string, valid string) bool {
 			return strings.HasSuffix(path, valid)
 		}
