@@ -215,7 +215,6 @@ func (v *VisitedLink) saveMany(links []string) {
 				"domain":      v.Domain,
 				"status_link": "pending",
 				"validated":   true,
-				"created_at":  time.Now(),
 				"updated_at":  time.Now(),
 			}
 			visitedLinks = append(visitedLinks, visitedLink)
