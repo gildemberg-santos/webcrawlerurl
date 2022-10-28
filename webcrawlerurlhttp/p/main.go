@@ -43,6 +43,12 @@ func WebCrawlerUrlHttp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if os.Getenv("GOOGLE_CLOUD_PROJECT") != "" && os.Getenv("GOOGLE_TOPIC_NAME") != "" {
+		if d.Company != 0 && d.Link != "" {
+			SendPubSub(DataPubSub{Company: d.Company, Link: d.Link})
+		}
+	}
+
 	mongo := MongoDB{
 		StringConnection: os.Getenv("MONGO_STR_CONNECTION"),
 	}
@@ -51,10 +57,6 @@ func WebCrawlerUrlHttp(w http.ResponseWriter, r *http.Request) {
 		d.Result = []primitive.M{}
 	}
 	d.Total = int32(len(d.Result))
-
-	if os.Getenv("GOOGLE_CLOUD_PROJECT") != "" && os.Getenv("GOOGLE_TOPIC_NAME") != ""{
-		SendPubSub(DataPubSub{Company: d.Company, Link: d.Link})
-	}
 
 	json.NewEncoder(w).Encode(d)
 }
