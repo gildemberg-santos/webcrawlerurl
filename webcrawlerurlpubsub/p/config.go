@@ -82,7 +82,7 @@ func (c *Config) SetLimitCompany() {
 	c.LimitCompany = 200
 }
 
-func (c *Config) IsLimitCompany(company int32) {
+func (c *Config) IsLimitCompany(company int32) bool {
 	c.SetMongoStrConnection()
 	c.SetLimitCompany()
 
@@ -93,9 +93,9 @@ func (c *Config) IsLimitCompany(company int32) {
 	pendingPages, _ := mongo.FindAll(bson.M{"company": company}, bson.M{})
 
 	if len(pendingPages) >= c.LimitCompany {
-		log.Println("Limit company reached")
-		os.Exit(0)
+		return true
 	}
+	return false
 }
 
 func (c *Config) Logs(msg ...interface{}) {

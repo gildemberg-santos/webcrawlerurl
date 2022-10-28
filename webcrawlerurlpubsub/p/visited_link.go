@@ -40,6 +40,10 @@ func (v *VisitedLink) init() {
 }
 
 func (v *VisitedLink) GetLink() {
+	if config.IsLimitCompany(v.Company) {
+		return
+	}
+
 	v.StatusLink = "visited"
 	v.Validated = true
 
@@ -60,7 +64,7 @@ func (v *VisitedLink) GetLink() {
 	var links = v.extractLinks(resp.Body)
 	v.saveMany(links)
 	v.saveOne()
-	config.IsLimitCompany(v.Company)
+
 }
 
 func (v *VisitedLink) extractLinks(node io.Reader) []string {
