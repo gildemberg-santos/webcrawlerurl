@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/joho/godotenv"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 type Config struct {
@@ -13,6 +14,7 @@ type Config struct {
 	LinksMax       int
 	MongoStrConnec string
 	StatusLog      bool
+	LimitCompany   int
 }
 
 func (c *Config) Init() {
@@ -24,6 +26,7 @@ func (c *Config) Init() {
 	config.SetLoopMax()
 	config.SetLinksMax()
 	config.SetMongoStrConnection()
+	config.SetLimitCompany()
 	config.SetLogs()
 }
 
@@ -66,6 +69,33 @@ func (c *Config) SetLogs() {
 		}
 	}
 	c.StatusLog = false
+}
+
+func (c *Config) SetLimitCompany() {
+	if os.Getenv("LIMIT_COMPANY") != "" {
+		intege, err := strconv.Atoi(os.Getenv("LIMIT_COMPANY"))
+		if err == nil && intege != 0 {
+			c.LimitCompany = intege
+			return
+		}
+	}
+	c.LimitCompany = 200
+}
+
+func (c *Config) IsLimitCompany(company int32) {
+	c.SetMongoStrConnection()
+	c.SetLimitCompany()
+
+	mongo := MongoDB{
+		StringConnection: config.MongoStrConnec,
+	}
+
+	pendingPages, _ := mongo.FindAll(bson.M{"company": company}, bson.M{})
+
+	if len(pendingPages) >= c.LimitCompany {
+		log.Println("Limit company reached")
+		os.Exit(0)
+	}
 }
 
 func (c *Config) Logs(msg ...interface{}) {

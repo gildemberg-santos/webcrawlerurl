@@ -60,6 +60,7 @@ func (v *VisitedLink) GetLink() {
 	var links = v.extractLinks(resp.Body)
 	v.saveMany(links)
 	v.saveOne()
+	config.IsLimitCompany(v.Company)
 }
 
 func (v *VisitedLink) extractLinks(node io.Reader) []string {

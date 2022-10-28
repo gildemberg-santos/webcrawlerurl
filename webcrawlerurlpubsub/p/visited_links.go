@@ -17,6 +17,8 @@ func FirstPage(company int32, url string) {
 		Validated:  true,
 	}
 
+	config.IsLimitCompany(company)
+
 	if !visitedLink.IsExist() {
 		config.Logs("First Page")
 
@@ -36,6 +38,7 @@ func PendingPageLoop(loop int, company int32) {
 	}
 
 	pendingPages, _ := mongo.FindAll(bson.M{"company": company, "status_link": "pending"}, bson.M{})
+	config.IsLimitCompany(company)
 	var wg sync.WaitGroup
 	for i, v := range pendingPages {
 		wg.Add(1)
