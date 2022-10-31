@@ -28,7 +28,10 @@ func FirstPage(company int32, url string) {
 		visitedLink.init()
 		visitedLink.saveOne()
 		visitedLink.NormalizeLink()
-		visitedLink.GetLink()
+		err := visitedLink.GetLink()
+		if err != nil {
+			return
+		}
 	}
 }
 
@@ -56,7 +59,12 @@ func PendingPageLoop(loop int, company int32) {
 				UpdatedAt:  v["updated_at"].(primitive.DateTime).Time(),
 			}
 			visitedlink.NormalizeLink()
-			visitedlink.GetLink()
+			err := visitedlink.GetLink()
+			if err != nil {
+				defer wg.Done()
+				return
+			}
+
 			defer wg.Done()
 		}(v)
 		if i >= config.LinksMax {

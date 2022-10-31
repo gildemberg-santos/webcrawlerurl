@@ -1,6 +1,7 @@
 package p
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -39,9 +40,9 @@ func (v *VisitedLink) init() {
 	v.NormalizeLink()
 }
 
-func (v *VisitedLink) GetLink() {
+func (v *VisitedLink) GetLink() error {
 	if config.IsLimitCompany(v.Company) {
-		return
+		return errors.New("Limit company")
 	}
 
 	v.StatusLink = "visited"
@@ -50,21 +51,21 @@ func (v *VisitedLink) GetLink() {
 	if !v.Validated {
 		config.Logs("Error: Invalid link", v.Link)
 		v.saveOne()
-		return
+		return nil
 	}
 
 	resp, err := http.Get(v.Link)
 	if err != nil {
 		config.Logs("Error: On get link", v.Link)
 		v.saveOne()
-		return
+		return nil
 	}
 	defer resp.Body.Close()
 
 	var links = v.extractLinks(resp.Body)
 	v.saveMany(links)
 	v.saveOne()
-
+	return nil
 }
 
 func (v *VisitedLink) extractLinks(node io.Reader) []string {

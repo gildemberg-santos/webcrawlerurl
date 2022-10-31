@@ -17,6 +17,12 @@ type Config struct {
 	LimitCompany   int
 }
 
+type LimitCompanyError struct {
+	Message    string
+	Err        error
+	StatusCode int
+}
+
 func (c *Config) Init() {
 	err := godotenv.Load(".env")
 	if err != nil {
