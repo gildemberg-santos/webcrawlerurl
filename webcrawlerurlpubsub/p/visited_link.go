@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -46,10 +47,10 @@ func (v *VisitedLink) GetLink() error {
 	}
 
 	v.StatusLink = "visited"
-	v.Validated = true
 
 	if !v.Validated {
 		config.Logs("Error: Invalid link", v.Link)
+		v.Validated = true
 		v.saveOne()
 		return nil
 	}
@@ -57,6 +58,7 @@ func (v *VisitedLink) GetLink() error {
 	resp, err := http.Get(v.Link)
 	if err != nil {
 		config.Logs("Error: On get link", v.Link)
+		v.Validated = true
 		v.saveOne()
 		return nil
 	}
@@ -138,6 +140,11 @@ func (v *VisitedLink) NormalizeLink() {
 			return strings.LastIndex(path, valid) != -1
 		}
 
+		validationEmail := func(path string) bool {
+			matched, _ := regexp.MatchString(`^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$`, path)
+			return matched
+		}
+
 		for _, extension := range []string{".pdf", ".jpg", ".gif", ".png"} {
 			if validationExtension(link.Path, extension) {
 				v.Validated = false
@@ -145,7 +152,7 @@ func (v *VisitedLink) NormalizeLink() {
 			}
 		}
 
-		for _, word := range []string{"mailto:", "tel:", "javascript:", "window."} {
+		for _, word := range []string{"mailto:", "tel:", "javascript:", "window.", ":void"} {
 			if validationWord(link.Path, word) {
 				v.Validated = false
 				return
@@ -156,9 +163,18 @@ func (v *VisitedLink) NormalizeLink() {
 			v.Validated = false
 			return
 		}
+
+		if validationEmail(link.Path) {
+			v.Validated = false
+			return
+		}
 	}
 
 	link.Fragment = ""
+	link.RawQuery = ""
+	link.Opaque = ""
+	link.RawFragment = ""
+	link.RawPath = ""
 	link.RawQuery = ""
 
 	v.Link = link.String()
