@@ -1,6 +1,6 @@
 module github.com/gildemberg-santos/webcrawlerhttp
 
-go 1.19
+go 1.23.0
 
 require (
 	cloud.google.com/go/pubsub v1.11.0
@@ -27,7 +27,7 @@ require (
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/net v0.36.0 // indirect
-	golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c // indirect
+	golang.org/x/oauth2 v0.27.0 // indirect
 	golang.org/x/sync v0.11.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
